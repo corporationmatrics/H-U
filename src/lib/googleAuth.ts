@@ -20,15 +20,18 @@ try {
 
 export const auth = authInstance;
 
-export const DRIVE_SCOPES = [
-  'https://www.googleapis.com/auth/drive.appdata',
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
+// Standard Google Auth scopes that do not trigger 403 unverified app restriction
+export const STANDARD_SCOPES = [
+  'email',
+  'profile',
+  'openid',
 ];
 
 const provider = new GoogleAuthProvider();
-DRIVE_SCOPES.forEach((scope) => provider.addScope(scope));
+STANDARD_SCOPES.forEach((scope) => provider.addScope(scope));
+provider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
@@ -145,9 +148,16 @@ export const setCachedAccessToken = (token: string | null) => {
 };
 
 /**
- * Log out from Firebase session.
+ * Log out from session safely.
  */
 export const logOutGoogle = async () => {
-  await signOut(auth);
+  try {
+    if (auth) {
+      await signOut(auth);
+    }
+  } catch (e) {
+    console.warn('Sign out cleanup note:', e);
+  }
   cachedAccessToken = null;
+  localStorage.removeItem('togetherlens_demo_user');
 };

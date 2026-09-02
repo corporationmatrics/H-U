@@ -1,0 +1,51 @@
+import { TimeCapsule } from '../types';
+
+export const initialTimeCapsules: TimeCapsule[] = [
+  {
+    id: 'capsule-1',
+    title: 'Secret Promise: Our 5th Anniversary Letter',
+    sealedBy: 'Partner 1 (Alex)',
+    sealedFor: 'Partner 2 (Taylor)',
+    sealedAtDate: '2025-06-14T10:00:00Z',
+    unlockType: 'anniversary',
+    unlockTargetDate: '2026-10-14T00:00:00Z', // Oct 14, 2026
+    anniversaryYear: 5,
+    secretMessage: `My love Taylor, if you are reading this, 5 whole years have passed since our first walk by the canal. I hid these 3 photos because you thought you looked silly laughing with gelato on your nose, but to me, it was the exact second I knew I was going to love you for the rest of my life. Happy 5th Anniversary! ❤️`,
+    voiceMemoNote: `Alex recorded a 45-second audio memo whispering the secret anniversary dinner location in Tuscany.`,
+    audioMemoDurationSeconds: 45,
+    photoIds: ['photo-1', 'photo-4', 'photo-6'],
+    waxSealColor: 'rose',
+    isUnlocked: false,
+    hintClue: 'A hidden memory from our first rainy gelato run in Milan...',
+  },
+  {
+    id: 'capsule-2',
+    title: 'Milestone 2,000 Days: Roadtrip Cassette Memories',
+    sealedBy: 'Partner 2 (Taylor)',
+    sealedFor: 'Both of Us',
+    sealedAtDate: '2025-08-01T15:30:00Z',
+    unlockType: 'days_together',
+    unlockTargetDaysTogether: 2000,
+    secretMessage: `2,000 Days of us! When we took this Pacific Coast Highway trip, we promised we'd never stop taking spontaneous weekend getaways. Look at how young we were! Let's book our next flight tonight.`,
+    voiceMemoNote: `Taylor recorded acoustic guitar chords of our favorite song from the car radio.`,
+    audioMemoDurationSeconds: 62,
+    photoIds: ['photo-2', 'photo-7'],
+    waxSealColor: 'gold',
+    isUnlocked: false,
+    hintClue: 'A playlist snapshot from our Big Sur sunset drive...',
+  },
+  {
+    id: 'capsule-3',
+    title: 'First Year Apartment Move-In Surprise',
+    sealedBy: 'Partner 1 (Alex)',
+    sealedFor: 'Partner 2 (Taylor)',
+    sealedAtDate: '2023-11-20T12:00:00Z',
+    unlockType: 'date',
+    unlockTargetDate: '2024-11-20T00:00:00Z', // Past date -> Unlocked!
+    secretMessage: `We officially survived building 4 IKEA bookshelves without breaking up! Here are the candid photos I took while you were asleep on the floor surrounded by cardboard boxes. You are my home.`,
+    photoIds: ['photo-3', 'photo-5'],
+    waxSealColor: 'emerald',
+    isUnlocked: true,
+    hintClue: 'Cardboard box fortress day in Brooklyn.',
+  },
+];

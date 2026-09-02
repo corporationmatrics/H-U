@@ -1,0 +1,6 @@
+{
+  "name": "TogetherLens",
+  "description": "AI-powered couple's photo library with zero-backend Google Drive sync, 3x3 Gemini batch analysis, 'The Us Timeline', smart memory resurfacing, and vector search.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

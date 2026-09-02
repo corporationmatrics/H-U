@@ -75,10 +75,24 @@ export interface CoupleProfile {
   partner2Name: string;
   partner1Avatar: string;
   partner2Avatar: string;
+  partner1Pin?: string; // 4-digit secret PIN
+  partner2Pin?: string; // 4-digit secret PIN
   anniversaryDate: string; // YYYY-MM-DD
   relationshipTitle: string;
   daysTogether: number;
+  partner1FavoriteIds?: string[];
+  partner2FavoriteIds?: string[];
+  googleDriveSettings?: {
+    autoUploadOnImport: boolean;
+    folderName: string;
+    folderId?: string;
+    isLinked: boolean;
+    customAccessToken?: string;
+  };
 }
+
+export type ActivePartnerView = 'partner1' | 'partner2' | 'together';
+
 
 export interface DriveSyncStatus {
   isConnected: boolean;

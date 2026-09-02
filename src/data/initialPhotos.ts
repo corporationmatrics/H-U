@@ -1,13 +1,22 @@
 import { PhotoItem, CoupleProfile } from '../types';
 
 export const initialCoupleProfile: CoupleProfile = {
-  partner1Name: 'Alex',
-  partner2Name: 'Taylor',
+  partner1Name: 'Upendra',
+  partner2Name: 'Hina',
   partner1Avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
   partner2Avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+  partner1Pin: '1111',
+  partner2Pin: '2222',
   anniversaryDate: '2022-09-01',
-  relationshipTitle: 'Alex & Taylor’s Story',
-  daysTogether: 1461,
+  relationshipTitle: 'Upendra & Hina’s Forever Story',
+  daysTogether: 1462,
+  partner1FavoriteIds: ['photo-1', 'photo-2', 'photo-5'],
+  partner2FavoriteIds: ['photo-1', 'photo-3', 'photo-6'],
+  googleDriveSettings: {
+    autoUploadOnImport: true,
+    folderName: 'TogetherLens Vault (Couple Photos)',
+    isLinked: true,
+  },
 };
 
 export const rawInitialPhotos: PhotoItem[] = [

@@ -15,9 +15,12 @@ import {
   Palette,
   FolderHeart,
   Hourglass,
-  BookOpen
+  BookOpen,
+  Lock,
+  UserCheck,
+  HardDrive
 } from 'lucide-react';
-import { CoupleProfile, DriveSyncStatus, TierLevel, AppThemeId } from '../types';
+import { CoupleProfile, DriveSyncStatus, TierLevel, AppThemeId, ActivePartnerView } from '../types';
 import { THEME_PRESETS } from '../theme/themes';
 
 export type MainTabType = 'timeline' | 'albums' | 'memories' | 'capsules' | 'storybook' | 'batch' | 'cinema' | 'vault';
@@ -28,6 +31,7 @@ interface HeaderNavProps {
   tier: TierLevel;
   activeTab: MainTabType;
   activeThemeId: AppThemeId;
+  activePartnerView?: ActivePartnerView;
   googleUser?: any | null;
   hasLiveGoogleToken?: boolean;
   isAuthenticating?: boolean;
@@ -37,6 +41,8 @@ interface HeaderNavProps {
   onOpenSearch: () => void;
   onOpenUpload: () => void;
   onOpenTheme: () => void;
+  onOpenPinModal?: () => void;
+  onOpenDriveSetup?: () => void;
   onToggleTier: () => void;
   onTriggerDriveSync: () => void;
 }
@@ -47,6 +53,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   tier,
   activeTab,
   activeThemeId,
+  activePartnerView = 'together',
   googleUser,
   hasLiveGoogleToken,
   isAuthenticating,
@@ -56,6 +63,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onOpenSearch,
   onOpenUpload,
   onOpenTheme,
+  onOpenPinModal,
+  onOpenDriveSetup,
   onToggleTier,
   onTriggerDriveSync,
 }) => {
@@ -205,6 +214,45 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 style={{ backgroundColor: currentTheme.palette.accent }} 
               />
             </button>
+
+            {/* Partner Perspective Profile Switcher */}
+            {onOpenPinModal && (
+              <button
+                id="header-partner-perspective-btn"
+                onClick={onOpenPinModal}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all shadow-xs ${
+                  activePartnerView === 'partner1'
+                    ? 'bg-rose-950/60 border-rose-500/60 text-rose-200'
+                    : activePartnerView === 'partner2'
+                    ? 'bg-amber-950/60 border-amber-500/60 text-amber-200'
+                    : 'bg-stone-800 border-stone-700 text-stone-200 hover:border-stone-600'
+                }`}
+                title="Switch Profile Perspective or Enter PIN"
+              >
+                <Lock className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden md:inline">
+                  {activePartnerView === 'partner1'
+                    ? `${profile.partner1Name} (His View)`
+                    : activePartnerView === 'partner2'
+                    ? `${profile.partner2Name} (Her View)`
+                    : 'Couple View'}
+                </span>
+                <span className="text-[10px] text-stone-400">🔒 Switch</span>
+              </button>
+            )}
+
+            {/* Google Drive Setup & Auto-Save Trigger */}
+            {onOpenDriveSetup && (
+              <button
+                id="header-drive-setup-btn"
+                onClick={onOpenDriveSetup}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-950/50 hover:bg-sky-900/50 border border-sky-700/60 text-sky-300 text-xs font-medium transition-all"
+                title="Configure Google Drive Auto-Save & Folder"
+              >
+                <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden lg:inline font-mono text-[11px]">Drive Auto-Save</span>
+              </button>
+            )}
 
             {/* Bulk Upload Button */}
             <button

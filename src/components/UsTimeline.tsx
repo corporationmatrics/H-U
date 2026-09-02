@@ -15,22 +15,24 @@ import {
   Layers,
   Film
 } from 'lucide-react';
-import { PhotoItem, CoupleProfile } from '../types';
+import { PhotoItem, CoupleProfile, ActivePartnerView } from '../types';
 
 interface UsTimelineProps {
   photos: PhotoItem[];
   profile: CoupleProfile;
+  activePartnerView?: ActivePartnerView;
   onSelectPhoto: (photo: PhotoItem) => void;
   onToggleFavorite: (id: string) => void;
   onAddToRecap: (photo: PhotoItem) => void;
   onOpenUpload?: () => void;
 }
 
-type TimelineFilter = 'only-us' | 'all' | 'trips' | 'milestones' | 'dates' | 'clutter';
+type TimelineFilter = 'only-us' | 'partner-favorites' | 'partner-solo' | 'all' | 'trips' | 'milestones' | 'dates' | 'clutter';
 
 export const UsTimeline: React.FC<UsTimelineProps> = ({
   photos,
   profile,
+  activePartnerView = 'together',
   onSelectPhoto,
   onToggleFavorite,
   onAddToRecap,
@@ -40,11 +42,26 @@ export const UsTimeline: React.FC<UsTimelineProps> = ({
   const [showFaceBoxesPreview, setShowFaceBoxesPreview] = useState<boolean>(true);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'aesthetic'>('newest');
 
+  const currentPartnerName = activePartnerView === 'partner1' ? profile.partner1Name : activePartnerView === 'partner2' ? profile.partner2Name : 'Both of Us';
+  const otherPartnerName = activePartnerView === 'partner1' ? profile.partner2Name : activePartnerView === 'partner2' ? profile.partner1Name : null;
+
   // Filter photos
   const filteredPhotos = useMemo(() => {
     return photos.filter((p) => {
       if (activeFilter === 'only-us') {
         return p.isUsCouple && !p.visualTriggers.isClutterOrReceipt;
+      }
+      if (activeFilter === 'partner-favorites') {
+        return p.isFavorite && !p.visualTriggers.isClutterOrReceipt;
+      }
+      if (activeFilter === 'partner-solo') {
+        if (activePartnerView === 'partner1') {
+          return p.detectedFaces.partner2Detected && !p.visualTriggers.isClutterOrReceipt;
+        }
+        if (activePartnerView === 'partner2') {
+          return p.detectedFaces.partner1Detected && !p.visualTriggers.isClutterOrReceipt;
+        }
+        return p.facesCount === 1 && !p.visualTriggers.isClutterOrReceipt;
       }
       if (activeFilter === 'all') {
         return !p.visualTriggers.isClutterOrReceipt;
@@ -67,7 +84,7 @@ export const UsTimeline: React.FC<UsTimelineProps> = ({
       if (sortBy === 'oldest') return new Date(a.date).getTime() - new Date(b.date).getTime();
       return b.aestheticScore - a.aestheticScore;
     });
-  }, [photos, activeFilter, sortBy]);
+  }, [photos, activeFilter, sortBy, activePartnerView]);
 
   // Group photos by Year + Month
   const groupedTimeline = useMemo(() => {
@@ -165,6 +182,45 @@ export const UsTimeline: React.FC<UsTimelineProps> = ({
             {usCoupleCount}
           </span>
         </button>
+
+        {/* Perspective Favorites */}
+        <button
+          id="filter-partner-favorites"
+          onClick={() => setActiveFilter('partner-favorites')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
+            activeFilter === 'partner-favorites'
+              ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md font-semibold'
+              : 'bg-stone-800/80 text-stone-300 hover:bg-stone-700/80 border border-stone-700/60'
+          }`}
+        >
+          <Star className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+          <span>
+            {activePartnerView === 'partner1'
+              ? `${profile.partner1Name}'s Favorites`
+              : activePartnerView === 'partner2'
+              ? `${profile.partner2Name}'s Favorites`
+              : 'Star Favorites'}
+          </span>
+        </button>
+
+        {/* Perspective Partner Solos */}
+        {otherPartnerName && (
+          <button
+            id="filter-partner-solo"
+            onClick={() => setActiveFilter('partner-solo')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
+              activeFilter === 'partner-solo'
+                ? 'bg-rose-700 text-white shadow-md font-semibold'
+                : 'bg-stone-800/80 text-stone-300 hover:bg-stone-700/80 border border-stone-700/60'
+            }`}
+          >
+            <span>
+              {activePartnerView === 'partner1'
+                ? `💖 Photos of ${profile.partner2Name}`
+                : `💖 Photos of ${profile.partner1Name}`}
+            </span>
+          </button>
+        )}
 
         <button
           id="filter-all"

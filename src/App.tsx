@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initialCoupleProfile, initialPhotos } from './data/initialPhotos';
 import { initialTimeCapsules } from './data/initialCapsules';
-import { CoupleProfile, DriveSyncStatus, PhotoItem, TierLevel, AppThemeId, CacheSettings, ThemedAlbum, TimeCapsule } from './types';
+import { CoupleProfile, DriveSyncStatus, PhotoItem, TierLevel, AppThemeId, CacheSettings, ThemedAlbum, TimeCapsule, ActivePartnerView } from './types';
 import { DEFAULT_CACHE_SETTINGS } from './utils/cacheManager';
 import { generateAutomatedAlbums } from './utils/albumGrouper';
 import { loadPersistedPhotos, savePersistedPhotos, loadPersistedProfile, savePersistedProfile } from './utils/indexedDbStorage';
@@ -19,16 +19,30 @@ import { SemanticSearchModal } from './components/SemanticSearchModal';
 import { PhotoDetailModal } from './components/PhotoDetailModal';
 import { BulkUploaderModal } from './components/BulkUploaderModal';
 import { ThemeSwitcherModal } from './components/ThemeSwitcherModal';
+import { CouplePinAuthModal } from './components/CouplePinAuthModal';
+import { GoogleDriveSetupModal } from './components/GoogleDriveSetupModal';
 import { THEME_PRESETS, DEFAULT_THEME_ID } from './theme/themes';
 import { initAuth, signInWithGoogle, logOutGoogle, getAccessToken } from './lib/googleAuth';
-import { listAppDataFiles, uploadToAppDataFolder } from './lib/driveService';
-import { Heart, Sparkles, CheckCircle2 } from 'lucide-react';
+import { listAppDataFiles, uploadToAppDataFolder, uploadPhotoToGoogleDrive } from './lib/driveService';
+import { Heart, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 
 export default function App() {
   const [profile, setProfile] = useState<CoupleProfile>(initialCoupleProfile);
   const [photos, setPhotos] = useState<PhotoItem[]>(initialPhotos);
   const [tier, setTier] = useState<TierLevel>('pro');
   const [activeTab, setActiveTab] = useState<MainTabType>('timeline');
+
+  // Partner Perspective & PIN State
+  const [activePartnerView, setActivePartnerView] = useState<ActivePartnerView>(() => {
+    return (localStorage.getItem('togetherlens_active_partner') as ActivePartnerView) || 'partner1';
+  });
+  const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
+  const [isInitialGateOpen, setIsInitialGateOpen] = useState<boolean>(() => {
+    return !sessionStorage.getItem('togetherlens_pin_authenticated');
+  });
+
+  // Google Drive Setup Modal State
+  const [isDriveSetupModalOpen, setIsDriveSetupModalOpen] = useState<boolean>(false);
   
   // Time Capsules state
   const [timeCapsules, setTimeCapsules] = useState<TimeCapsule[]>(() => {
@@ -62,7 +76,6 @@ export default function App() {
 
   const autoAlbums = useMemo(() => generateAutomatedAlbums(photos, profile), [photos, profile]);
 
-  
   // Theme state
   const [activeThemeId, setActiveThemeId] = useState<AppThemeId>(() => {
     const saved = localStorage.getItem('togetherlens_theme') as AppThemeId;
@@ -114,8 +127,8 @@ export default function App() {
   // Google Drive Sync status state
   const [syncStatus, setSyncStatus] = useState<DriveSyncStatus>({
     isConnected: true,
-    userEmail: 'alex.taylor.story@gmail.com',
-    syncFolder: 'appDataFolder',
+    userEmail: 'upendra.matrix@gmail.com',
+    syncFolder: 'TogetherLens Vault (Couple Photos)',
     lastSyncedAt: 'Just now',
     pendingCount: 0,
     rateLimitQuota: {
@@ -131,9 +144,9 @@ export default function App() {
       {
         id: 'log_01',
         timestamp: '00:15:20',
-        action: 'library_index.json uploaded to appDataFolder',
+        action: 'library_index.json uploaded to Google Drive',
         status: 'success',
-        details: '10 couple items indexed, sqlite-vec embeddings refreshed',
+        details: 'Couple items indexed & backed up to Google Drive',
       }
     ]
   });
@@ -143,9 +156,8 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Listen for Google Auth state
+  // Listen for Google Auth state and load local persistence
   useEffect(() => {
-    // Load persisted photos from IndexedDB on initial launch
     loadPersistedPhotos().then((stored) => {
       if (stored && stored.length > 0) {
         setPhotos(stored);
@@ -185,6 +197,23 @@ export default function App() {
       savePersistedPhotos(next).catch(console.error);
       return next;
     });
+  };
+
+  // Update and persist profile
+  const handleUpdateProfile = (newProfile: CoupleProfile) => {
+    setProfile(newProfile);
+    savePersistedProfile(newProfile).catch(console.error);
+  };
+
+  // Authenticate Partner PIN
+  const handlePartnerPinAuthenticated = (partner: ActivePartnerView) => {
+    setActivePartnerView(partner);
+    sessionStorage.setItem('togetherlens_pin_authenticated', 'true');
+    localStorage.setItem('togetherlens_active_partner', partner);
+    setIsInitialGateOpen(false);
+    setIsPinModalOpen(false);
+    const name = partner === 'partner1' ? profile.partner1Name : partner === 'partner2' ? profile.partner2Name : 'Shared (Both)';
+    showToast(`🔓 Unlocked ${name}'s Perspective!`);
   };
 
   const handleGoogleSignIn = async () => {
@@ -228,7 +257,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Trigger Google Drive sync simulation
+  // Trigger Google Drive sync
   const handleTriggerDriveSync = async () => {
     setSyncStatus((prev) => ({ ...prev, isSyncingNow: true }));
     try {
@@ -248,7 +277,7 @@ export default function App() {
         indexFileSizeKb: data.indexSizeKb || 15.2,
         rawStorageMb: data.rawStorageMb || 44.1,
       }));
-      showToast('☁️ library_index.json synced to Google Drive appDataFolder');
+      showToast('☁️ Photos metadata synced to Google Drive');
     } catch (err) {
       console.error('Drive sync failed:', err);
       setSyncStatus((prev) => ({ ...prev, isSyncingNow: false }));
@@ -290,10 +319,44 @@ export default function App() {
     setActiveTab('cinema');
   };
 
-  // Add new photos
+  // Add new photos + Automatic Google Drive Upload
   const handleAddPhotos = (newPhotos: PhotoItem[]) => {
     updateAndPersistPhotos((prev) => [...newPhotos, ...prev]);
-    showToast(`📸 Imported ${newPhotos.length} new photos to Vault & synchronized.`);
+    showToast(`📸 Saved ${newPhotos.length} photos locally in IndexedDB.`);
+
+    // Auto-upload to signed Google Drive if enabled
+    const isAutoDriveEnabled = profile.googleDriveSettings?.autoUploadOnImport !== false;
+    if (isAutoDriveEnabled) {
+      showToast('☁️ Initiating automatic backup to Google Drive...');
+      
+      // Asynchronously upload each to Google Drive folder
+      newPhotos.forEach(async (photo) => {
+        try {
+          const driveResult = await uploadPhotoToGoogleDrive({
+            filename: `${photo.title || 'memory'}_${photo.id}.jpg`,
+            dataUrlOrBlob: photo.fullOriginalUrl || photo.url || photo.thumbnail,
+            folderName: profile.googleDriveSettings?.folderName || 'TogetherLens Vault (Couple Photos)',
+            token: profile.googleDriveSettings?.customAccessToken,
+          });
+
+          // Mark photo as synced to Google Drive
+          updateAndPersistPhotos((current) =>
+            current.map((p) =>
+              p.id === photo.id
+                ? {
+                    ...p,
+                    driveSyncState: 'synced',
+                    driveFileId: driveResult.id,
+                    driveSyncedAt: new Date().toISOString(),
+                  }
+                : p
+            )
+          );
+        } catch (err) {
+          console.warn(`Drive auto-upload warning for photo ${photo.id}:`, err);
+        }
+      });
+    }
   };
 
   // Toggle Free vs Pro SaaS Tier
@@ -312,54 +375,60 @@ export default function App() {
   const handleTogglePinAlbum = (albumId: string) => {
     const isCurrentlyPinned = cacheSettings.pinnedAlbumIds.includes(albumId);
     const newPinnedIds = isCurrentlyPinned
-      ? cacheSettings.pinnedAlbumIds.filter(id => id !== albumId)
+      ? cacheSettings.pinnedAlbumIds.filter((id) => id !== albumId)
       : [...cacheSettings.pinnedAlbumIds, albumId];
-    
+
     handleUpdateCacheSettings({
       ...cacheSettings,
       pinnedAlbumIds: newPinnedIds,
     });
 
-    // Update photos within album to be pinned
-    const targetAlbum = autoAlbums.find(a => a.id === albumId);
+    const targetAlbum = autoAlbums.find((a) => a.id === albumId);
     if (targetAlbum) {
-      updateAndPersistPhotos(prev => prev.map(p => {
-        if (targetAlbum.photoIds.includes(p.id)) {
-          return {
-            ...p,
-            isPinnedOffline: !isCurrentlyPinned,
-            cachedTier: !isCurrentlyPinned ? 'full' : p.cachedTier,
-          };
-        }
-        return p;
-      }));
+      updateAndPersistPhotos((prev) =>
+        prev.map((p) => {
+          if (targetAlbum.photoIds.includes(p.id)) {
+            return {
+              ...p,
+              isPinnedOffline: !isCurrentlyPinned,
+              cachedTier: !isCurrentlyPinned ? 'full' : p.cachedTier,
+            };
+          }
+          return p;
+        })
+      );
     }
 
-    showToast(isCurrentlyPinned ? `Removed album pin (${targetAlbum?.title || ''})` : `📌 Pinned "${targetAlbum?.title || 'Album'}" offline! (Protected from LRU eviction)`);
+    showToast(
+      isCurrentlyPinned
+        ? `Removed album pin (${targetAlbum?.title || ''})`
+        : `📌 Pinned "${targetAlbum?.title || 'Album'}" offline! (Protected from LRU eviction)`
+    );
   };
 
   const handleTogglePinPhoto = (photoId: string) => {
-    updateAndPersistPhotos(prev => prev.map(p => {
-      if (p.id === photoId) {
-        const next = !p.isPinnedOffline;
-        showToast(next ? `📌 Pinned photo offline for instant full-res access!` : `Unpinned photo (now evictable on LRU)`);
-        return {
-          ...p,
-          isPinnedOffline: next,
-          cachedTier: next ? 'full' : p.cachedTier,
-        };
-      }
-      return p;
-    }));
+    updateAndPersistPhotos((prev) =>
+      prev.map((p) => {
+        if (p.id === photoId) {
+          const next = !p.isPinnedOffline;
+          showToast(next ? `📌 Pinned photo offline for instant full-res access!` : `Unpinned photo (now evictable on LRU)`);
+          return {
+            ...p,
+            isPinnedOffline: next,
+            cachedTier: next ? 'full' : p.cachedTier,
+          };
+        }
+        return p;
+      })
+    );
   };
 
   const handlePhotosUpdated = (updatedPhotos: PhotoItem[]) => {
     updateAndPersistPhotos(() => updatedPhotos);
   };
 
-
   return (
-    <div 
+    <div
       data-theme={activeThemeId}
       className={`min-h-screen flex flex-col transition-colors duration-300 ${
         activeTheme.isDark ? 'bg-stone-900 text-stone-100' : 'bg-[#f7f4ee] text-stone-850'
@@ -370,7 +439,6 @@ export default function App() {
         ['--theme-glow' as any]: activeTheme.palette.glow,
       }}
     >
-      
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-stone-900/95 border border-rose-500/50 text-stone-100 text-xs sm:text-sm shadow-2xl backdrop-blur-md animate-slide-up">
@@ -386,6 +454,7 @@ export default function App() {
         tier={tier}
         activeTab={activeTab}
         activeThemeId={activeThemeId}
+        activePartnerView={activePartnerView}
         googleUser={googleUser}
         hasLiveGoogleToken={hasLiveGoogleToken}
         isAuthenticating={isAuthenticating}
@@ -395,6 +464,8 @@ export default function App() {
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenTheme={() => setIsThemeModalOpen(true)}
+        onOpenPinModal={() => setIsPinModalOpen(true)}
+        onOpenDriveSetup={() => setIsDriveSetupModalOpen(true)}
         onToggleTier={handleToggleTier}
         onTriggerDriveSync={handleTriggerDriveSync}
       />
@@ -405,6 +476,7 @@ export default function App() {
           <UsTimeline
             photos={photos}
             profile={profile}
+            activePartnerView={activePartnerView}
             onSelectPhoto={setSelectedPhoto}
             onToggleFavorite={handleToggleFavorite}
             onAddToRecap={handleAddToRecap}
@@ -507,10 +579,36 @@ export default function App() {
             <span>— Zero-Backend Cloud Vault for Couples</span>
           </div>
           <div className="font-mono text-[11px] text-stone-400">
-            Google Drive appDataFolder • sqlite-vec • Gemini Vision 3x3 Batch
+            Google Drive Vault • PIN Protected Profiles • IndexedDB Offline Cache
           </div>
         </div>
       </footer>
+
+      {/* Initial / On-Demand Couple PIN Lock Screen */}
+      <CouplePinAuthModal
+        isOpen={isInitialGateOpen || isPinModalOpen}
+        isInitialGate={isInitialGateOpen}
+        currentActivePartner={activePartnerView}
+        profile={profile}
+        onAuthenticate={handlePartnerPinAuthenticated}
+        onUpdateProfile={handleUpdateProfile}
+        onClose={() => {
+          setIsPinModalOpen(false);
+          if (isInitialGateOpen) setIsInitialGateOpen(false);
+        }}
+      />
+
+      {/* Google Drive Setup Modal */}
+      <GoogleDriveSetupModal
+        isOpen={isDriveSetupModalOpen}
+        onClose={() => setIsDriveSetupModalOpen(false)}
+        googleUser={googleUser}
+        profile={profile}
+        photos={photos}
+        onUpdatePhotos={updateAndPersistPhotos}
+        onUpdateProfile={handleUpdateProfile}
+        showToast={showToast}
+      />
 
       {/* Semantic Search Overlay Modal */}
       <SemanticSearchModal
@@ -532,7 +630,6 @@ export default function App() {
         onTogglePinPhoto={handleTogglePinPhoto}
         onShowToast={showToast}
       />
-
 
       {/* Upload & Album Import Modal */}
       <BulkUploaderModal
@@ -559,7 +656,7 @@ export default function App() {
         currentPhotoContextTitle={selectedPhoto?.title}
         onShowToast={showToast}
       />
-
     </div>
   );
 }
+

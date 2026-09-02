@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { PhotoItem, CoupleProfile, CoupleContextCategory } from '../types';
 import { generatePseudoEmbedding } from '../utils/vectorSimilarity';
+import { fileToDataUrl } from '../utils/indexedDbStorage';
 
 interface BulkUploaderModalProps {
   isOpen: boolean;
@@ -193,13 +194,21 @@ export const BulkUploaderModal: React.FC<BulkUploaderModalProps> = ({
   };
 
   // Handle local native file or folder selection
-  const handleNativeFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNativeFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const fileList = Array.from(files) as File[];
     const newItems: QueuedUploadItem[] = [];
-    (Array.from(files) as File[]).forEach((file: File, idx: number) => {
-      const url = URL.createObjectURL(file);
+
+    for (let idx = 0; idx < fileList.length; idx++) {
+      const file = fileList[idx];
+      let url = '';
+      try {
+        url = await fileToDataUrl(file);
+      } catch (err) {
+        url = URL.createObjectURL(file);
+      }
       const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
       const isClutterGuess = /receipt|ticket|bill|screenshot|tax|uber/i.test(cleanName);
       const isSoloGuess = /solo|selfie/i.test(cleanName) && !/both|together|us/i.test(cleanName);
@@ -230,7 +239,7 @@ export const BulkUploaderModal: React.FC<BulkUploaderModalProps> = ({
         nostalgicSummary: `Newly imported memory with ${profile.partner1Name} & ${profile.partner2Name}.`,
         gridBatchIndex: batchIdx,
       });
-    });
+    }
 
     setQueue((prev) => [...prev, ...newItems]);
     setActiveTab('pipeline');

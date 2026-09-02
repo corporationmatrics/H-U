@@ -4,6 +4,7 @@ import { initialTimeCapsules } from './data/initialCapsules';
 import { CoupleProfile, DriveSyncStatus, PhotoItem, TierLevel, AppThemeId, CacheSettings, ThemedAlbum, TimeCapsule } from './types';
 import { DEFAULT_CACHE_SETTINGS } from './utils/cacheManager';
 import { generateAutomatedAlbums } from './utils/albumGrouper';
+import { loadPersistedPhotos, savePersistedPhotos, loadPersistedProfile, savePersistedProfile } from './utils/indexedDbStorage';
 import { HeaderNav, MainTabType } from './components/HeaderNav';
 import { UsTimeline } from './components/UsTimeline';
 import { SmartMemoryResurfacing } from './components/SmartMemoryResurfacing';
@@ -144,6 +145,19 @@ export default function App() {
 
   // Listen for Google Auth state
   useEffect(() => {
+    // Load persisted photos from IndexedDB on initial launch
+    loadPersistedPhotos().then((stored) => {
+      if (stored && stored.length > 0) {
+        setPhotos(stored);
+      }
+    }).catch(console.error);
+
+    loadPersistedProfile().then((storedProfile) => {
+      if (storedProfile) {
+        setProfile(storedProfile);
+      }
+    }).catch(console.error);
+
     const unsubscribe = initAuth(
       (user, token) => {
         setGoogleUser(user);
@@ -163,6 +177,15 @@ export default function App() {
     );
     return () => unsubscribe();
   }, []);
+
+  // Persist photos automatically whenever photo collection changes
+  const updateAndPersistPhotos = (updater: (prev: PhotoItem[]) => PhotoItem[]) => {
+    setPhotos((prev) => {
+      const next = updater(prev);
+      savePersistedPhotos(next).catch(console.error);
+      return next;
+    });
+  };
 
   const handleGoogleSignIn = async () => {
     setIsAuthenticating(true);
@@ -234,7 +257,7 @@ export default function App() {
 
   // Update photos from 3x3 Gemini Batch Scan
   const handleBatchUpdatePhotos = (results: any[]) => {
-    setPhotos((prev) =>
+    updateAndPersistPhotos((prev) =>
       prev.map((photo) => {
         const match = results.find((r: any) => r.photoId === photo.id);
         if (match) {
@@ -256,7 +279,7 @@ export default function App() {
 
   // Toggle favorite
   const handleToggleFavorite = (id: string) => {
-    setPhotos((prev) =>
+    updateAndPersistPhotos((prev) =>
       prev.map((p) => (p.id === id ? { ...p, isFavorite: !p.isFavorite } : p))
     );
   };
@@ -269,7 +292,7 @@ export default function App() {
 
   // Add new photos
   const handleAddPhotos = (newPhotos: PhotoItem[]) => {
-    setPhotos((prev) => [...newPhotos, ...prev]);
+    updateAndPersistPhotos((prev) => [...newPhotos, ...prev]);
     showToast(`📸 Imported ${newPhotos.length} new photos to Vault & synchronized.`);
   };
 
@@ -300,7 +323,7 @@ export default function App() {
     // Update photos within album to be pinned
     const targetAlbum = autoAlbums.find(a => a.id === albumId);
     if (targetAlbum) {
-      setPhotos(prev => prev.map(p => {
+      updateAndPersistPhotos(prev => prev.map(p => {
         if (targetAlbum.photoIds.includes(p.id)) {
           return {
             ...p,
@@ -316,7 +339,7 @@ export default function App() {
   };
 
   const handleTogglePinPhoto = (photoId: string) => {
-    setPhotos(prev => prev.map(p => {
+    updateAndPersistPhotos(prev => prev.map(p => {
       if (p.id === photoId) {
         const next = !p.isPinnedOffline;
         showToast(next ? `📌 Pinned photo offline for instant full-res access!` : `Unpinned photo (now evictable on LRU)`);
@@ -331,7 +354,7 @@ export default function App() {
   };
 
   const handlePhotosUpdated = (updatedPhotos: PhotoItem[]) => {
-    setPhotos(updatedPhotos);
+    updateAndPersistPhotos(() => updatedPhotos);
   };
 
 
